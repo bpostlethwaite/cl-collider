@@ -375,7 +375,10 @@
     :reader osc-device)
    (just-connect-p
     :initarg :just-connect-p
-    :reader just-connect-p)))
+    :reader just-connect-p)
+   (pw-jack-p
+    :initarg :pw-jack-p
+    :reader pw-jack-p)))
 
 (defmethod print-object ((self external-server) stream)
   (format stream "#<~s ~a-~d:~d>"
@@ -394,10 +397,13 @@
   (unless (just-connect-p rt-server)
     (setf (sc-thread rt-server)
       (bt:make-thread
-       (lambda () (sc-program-run (full-pathname *sc-synth-program*)
-				  (append
-				   (list "-u" (write-to-string (port rt-server)))
-				   (build-server-options (server-options rt-server)))))
+       (lambda ()
+	 (let ((server-cmd (full-pathname *sc-synth-program*))
+	       (server-args (append (list "-u" (write-to-string (port rt-server)))
+			     (build-server-options (server-options rt-server)))))
+	   (if (pw-jack-p rt-server)
+	       (sc-program-run "pw-jack" (push server-cmd server-args))
+	       (sc-program-run server-cmd server-args))))
        :name "scsynth"))
     #+windows
     ;;wait for running scsynth(binding socket port)
@@ -439,13 +445,15 @@
 (defun make-external-server (name &key (server-options (make-server-options))
 				    (host "127.0.0.1")
 				    port
-				    just-connect-p)
+				    just-connect-p
+				    pw-jack-p)
   (assert port nil "Server port must be specified.")
   (make-instance 'external-server :name name
 				  :server-options server-options
 				  :host host
 				  :port port
-				  :just-connect-p just-connect-p))
+				  :just-connect-p just-connect-p
+				  :pw-jack-p pw-jack-p))
 
 
 ;; cleanup server
